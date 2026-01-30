@@ -1,21 +1,9 @@
 import torch
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 
 
-def mackey_glass(n, tau=17, beta=0.2, gamma=0.1, p=10, device='cpu'):
-    """dx/dt = β*x(t-τ)/(1+x(t-τ)^p) - γ*x(t)"""
-    x = torch.zeros(n, device=device)
-    x[0] = 1.2
-
-    const = beta * 1.2 / (1 + 1.2 ** p)
-
-    for t in range(1, min(tau, n)):
-        x[t] = x[t - 1] + const - gamma * x[t - 1]
-
-    for t in range(tau, n):
-        x_tau = x[t - tau]
-        x[t] = x[t - 1] + beta * x_tau / (1 + x_tau ** p) - gamma * x[t - 1]
-
-    return x
 
 
 def nrmse(pred, target):
@@ -23,25 +11,118 @@ def nrmse(pred, target):
     return torch.sqrt(torch.mean((pred - target) ** 2)) / torch.std(target)
 
 
+def r2_score(pred, target):
+    """R-squared metric"""
+    ss_res = torch.sum((pred - target) ** 2)
+    ss_tot = torch.sum((target - torch.mean(target)) ** 2)
+    return 1 - ss_res / ss_tot
+
+
+def accuracy_metric(pred, target, tol=0.1):
+    """percentage predictions within tolerance"""
+    error = torch.abs(pred - target)
+    return torch.mean((error < tol).float())
+
+
 def prepare_data(cfg):
-    """Generate Mackey-Glass data"""
-    total = cfg['train_len'] + cfg['test_len'] + cfg['washout'] + 1
-    data = mackey_glass(total, device=cfg['device'])
+    
 
-    train_in = data[:cfg['train_len']].unsqueeze(-1)
-    train_out = data[1:cfg['train_len'] + 1].unsqueeze(-1)
-    test_in = data[cfg['train_len']:cfg['train_len'] + cfg['test_len']].unsqueeze(-1)
-    test_out = data[cfg['train_len'] + 1:cfg['train_len'] + cfg['test_len'] + 1].unsqueeze(-1)
+    df= pd.read_excel("esn1.xlsx")
+    height = torch.tensor(df["Lan Height"].values, dtype=torch.float32)
+    flow = torch.tensor(df["V of Oxy"].values, dtype=torch.float32)
+    target = torch.tensor(df["dc/dt"].values, dtype=torch.float32)
+    inputs = torch.stack([height, flow], dim=1)
+    targets = target.unsqueeze(-1)
+    
 
-    return train_in, train_out, test_in, test_out
+    train_len = cfg['train_len']
+    test_len = cfg['test_len']
+
+    train_in = inputs[:train_len]
+    train_out = targets[1:train_len+1]
+
+    test_in = inputs[train_len:train_len+test_len]
+    test_out = targets[train_len+1:train_len+test_len+1]
+
+    mean = train_in.mean(0)
+    std = train_in.std(0)
+
+    train_in = (train_in - mean) / std
+    test_in = (test_in - mean) / std
+
+    t_mean = train_out.mean()
+    t_std = train_out.std()
+
+    train_out = (train_out - t_mean) / t_std
+    test_out = (test_out - t_mean) / t_std
+
+    return train_in, train_out, test_in, test_out, t_mean, t_std,mean, std
+
+
+
+def load_full_data():
+    """Load entire dataset for full-curve prediction (visualization only)"""
+
+    df = pd.read_excel("esn1.xlsx")
+
+    height = torch.tensor(df["Lan Height"].values, dtype=torch.float32)
+    flow = torch.tensor(df["V of Oxy"].values, dtype=torch.float32)
+    target = torch.tensor(df["dc/dt"].values, dtype=torch.float32)
+
+    inputs = torch.stack([height, flow], dim=1)
+    targets = target.unsqueeze(-1)
+
+    
+
+    return inputs, targets
+
 
 
 def print_cfg(cfg):
-    dens = "dense" if cfg.get("density") is None else f"{cfg['density']:.3g}"
     print(
-        f"ESN [{cfg.get('device', 'cpu')}]:\n"
-        f"res={cfg['n_res']}, rho={cfg['rho']:.3g}, dens={dens}\n"
-        f"in={cfg['input_scale']:.3g}, leak={cfg['leak_rate']:.3g}, reg={cfg['reg']:.3g}\n"
+        f"ESN:\n"
+        f"res={cfg['n_res']}, rho={cfg['rho']}, dens={cfg['density']}\n"
         f"wash={cfg['washout']}, train={cfg['train_len']}, test={cfg['test_len']}\n"
-        f"seed={cfg['seed']}\n"
     )
+
+
+def save_predictions_csv(pred, target, filename="results.csv"):
+
+    pred = pred.detach().cpu().numpy().flatten()
+    target = target.detach().cpu().numpy().flatten()
+
+    df = pd.DataFrame({
+        "True_dc_dt": target,
+        "Predicted_dc_dt": pred
+    })
+
+    df.to_csv(filename, index=False)
+
+    print(f"Saved predictions to {filename}")
+
+
+
+def plot_predictions(pred, target,filename="prediction_plot.png"):
+
+    pred = pred.detach().cpu().numpy().flatten()
+    target = target.detach().cpu().numpy().flatten()
+
+    plt.figure(figsize=(10,5))
+
+    plt.plot(target, label="True", linewidth=2)
+    plt.plot(pred, label="Predicted", linestyle="--")
+
+    plt.xlabel("Time step")
+    plt.ylabel("dc/dt")
+    plt.title("ESN Prediction vs True Signal")
+
+    plt.legend()
+    plt.grid(True)
+
+    plt.tight_layout()
+    plt.savefig(filename, dpi=300)
+    
+
+    print(f"Saved plot to {filename}")  
+    plt.close()
+  

@@ -27,11 +27,15 @@ def accuracy_metric(pred, target, tol=0.1):
 def prepare_data(cfg):
     
 
-    df= pd.read_excel("esn1.xlsx")
+    df= pd.read_excel("ESN8.xlsx")
     height = torch.tensor(df["Lan Height"].values, dtype=torch.float32)
     flow = torch.tensor(df["V of Oxy"].values, dtype=torch.float32)
     target = torch.tensor(df["dc/dt"].values, dtype=torch.float32)
-    inputs = torch.stack([height, flow], dim=1)
+    time = torch.tensor(df["Time"].values, dtype=torch.float32)
+    
+
+
+    inputs = torch.stack([height, flow,time], dim=1)
     targets = target.unsqueeze(-1)
     
 
@@ -63,13 +67,14 @@ def prepare_data(cfg):
 def load_full_data():
     """Load entire dataset for full-curve prediction (visualization only)"""
 
-    df = pd.read_excel("esn1.xlsx")
+    df = pd.read_excel("ESN8.xlsx")
 
     height = torch.tensor(df["Lan Height"].values, dtype=torch.float32)
     flow = torch.tensor(df["V of Oxy"].values, dtype=torch.float32)
     target = torch.tensor(df["dc/dt"].values, dtype=torch.float32)
+    time = torch.tensor(df["Time"].values, dtype=torch.float32)
 
-    inputs = torch.stack([height, flow], dim=1)
+    inputs = torch.stack([height, flow,time], dim=1)
     targets = target.unsqueeze(-1)
 
     

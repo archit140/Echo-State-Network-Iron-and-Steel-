@@ -14,23 +14,23 @@ matplotlib.use('Agg')  # non-GUI backend
 
 def config():
     """General parameter sweep tests on Mackey-glass yielded the following configurations:"""
-    return {                    # | Suggested   | Best Found   | Top 10% Range     |
+    return {                   
         'n_res': 15,           
         'rho': 0.92,            
         'density': 0.17,        
         'input_scale': 3.2,     
         'leak_rate': 0.79,      
         'reg': 0.01,           
-        'washout': 5,         
-        'train_len': 120,     
-        'test_len': 20,       
+        'washout': 6,         
+        'train_len': 115,     
+        'test_len': 32,       
         'seed': 1001,
         'device': 'cpu'
     }
 
 
 def train_esn(cfg, train_in, train_out):
-    esn = ESNLayer(n_in=2, n_res=cfg['n_res'], n_out=1, spectral_radius=cfg['rho'], density=cfg['density'], input_scale=cfg['input_scale'], leak_rate=cfg['leak_rate'], reg=cfg['reg'], seed=cfg['seed'], device=cfg['device'])
+    esn = ESNLayer(n_in=3, n_res=cfg['n_res'], n_out=1, spectral_radius=cfg['rho'], density=cfg['density'], input_scale=cfg['input_scale'], leak_rate=cfg['leak_rate'], reg=cfg['reg'], seed=cfg['seed'], device=cfg['device'])
     esn.fit(train_in, train_out, washout=cfg['washout'])
     return esn
 
